@@ -84,10 +84,6 @@
         }
 
         #avatar-full-body.state-minimized img {
-            display: none;
-        }
-
-        #avatar-full-body.state-minimized .avatar-thumbnail {
             display: block;
             height: 100%;
             width: 100%;
@@ -97,8 +93,14 @@
             box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
         }
 
-        #avatar-full-body:not(.state-minimized) .avatar-thumbnail {
-            display: none;
+        /* 最小化继续使用主图，无需单独缩略图元素 */
+        #avatar-full-body:not(.state-minimized) img {
+            height: 100%;
+            width: auto;
+            object-fit: contain;
+            border-radius: 0;
+            border: none;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
         }
 
         #avatar-full-body.state-minimized .minimize-btn,
@@ -1063,8 +1065,7 @@
             <i class="fas fa-stop"></i>
         </button>
 
-        <img src="jimeng.png" alt="EHS AI 数字人助手" class="avatar-main">
-        <img src="j.png" alt="EHS AI 数字人助手缩略图" class="avatar-thumbnail">
+        <img src="jimeng.png" alt="EHS AI 数字人助手">
     </div>
 
     <!-- 激活触发按钮 -->
