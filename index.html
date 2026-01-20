@@ -2,2128 +2,819 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EHS AI 数字人助手</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EHS Digital Human Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
-        /* 全局样式 */
+        /* =========================================
+           1. Global & Reset
+           ========================================= */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
-            height: 100vh;
             width: 100vw;
-            /* background: url('./jkdp.png') no-repeat center center fixed; */
-            background: black no-repeat center center fixed;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            background: url('jkdp.png') no-repeat center center fixed;
             background-size: cover;
+            /* Fallback in case image loads slowly */
+            background-color: #000;
         }
 
-        /* Dashboard 背景 */
-        #dashboard-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-        }
-
-        /* 全尺寸数字人容器 */
-        #avatar-full-body {
+        /* =========================================
+           2. Avatar Container
+           ========================================= */
+        #avatar-container {
             position: fixed;
-            bottom: 0;
-            right: 20px;
-            z-index: 9998;
-            height: 60vh;
-            width: auto;
-            pointer-events: auto;
-            transition: opacity 0.4s ease, transform 0.4s ease;
+            /* Default Position: Bottom Right */
+            right: 5%;
+            bottom: 120px; /* Lifted up to make room for input bar below */
+            width: 35vh; /* Responsive width based on height */
+            height: 70vh;
+            z-index: 1000;
+            will-change: transform;
+            /* Initial transition for entrance/minimize effects */
+            /* Note: 'transform' transition is removed via JS during drag */
+            transition: transform 0.1s linear, opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), scale 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             user-select: none;
         }
 
-        #avatar-full-body.dragging {
-            cursor: move;
-            transition: none;
-        }
-
-        #avatar-full-body:not(.state-minimized):not(.state-hidden) {
-            cursor: move;
-        }
-
-        #avatar-full-body img.avatar-main {
-            height: 100%;
-            width: auto;
-            display: block;
-            filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.3));
-            pointer-events: none;
-        }
-
-        #avatar-full-body.state-hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        #avatar-full-body.state-visible {
-            opacity: 1;
-        }
-
-        #avatar-full-body.state-minimized {
-            height: 80px;
-            width: 80px;
-            bottom: 20px;
-            right: 20px;
-            opacity: 1;
-            pointer-events: auto;
-            cursor: pointer;
-            transition: all 0.4s ease;
-        }
-
-        #avatar-full-body.state-minimized img {
-            display: block;
-            height: 100%;
+        /* Inner wrapper for Breathing Animation */
+        /* Separating position (container) from local animation (wrapper) avoids conflict */
+        .avatar-breathing-wrapper {
             width: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-            border: 2px solid rgba(0, 240, 255, 0.5);
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
-        }
-
-        /* 最小化继续使用主图，无需单独缩略图元素 */
-        #avatar-full-body:not(.state-minimized) img {
             height: 100%;
-            width: auto;
-            object-fit: contain;
-            border-radius: 0;
-            border: none;
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
-        }
-
-        #avatar-full-body.state-minimized .minimize-btn,
-        #avatar-full-body.state-minimized .speech-bubble {
-            display: none;
-        }
-
-        /* 收起/最小化按钮 */
-        .minimize-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 16px;
-            height: 16px;
-            background: rgba(255, 77, 77, 0.8);
-            backdrop-filter: blur(10px);
-            border: 2px solid rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            color: #fff;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            z-index: 10001;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            pointer-events: auto;
-        }
-
-        #avatar-full-body.state-visible .minimize-btn {
-            display: flex;
-        }
-
-        .minimize-btn:hover {
-            background: rgba(255, 77, 77, 1);
-            transform: scale(1.15);
-            box-shadow: 0 4px 15px rgba(255, 77, 77, 0.6);
-        }
-
-        .minimize-btn:active {
-            transform: scale(0.95);
-        }
-
-        /* EHS AI 助手容器 - 已重构为 HUD 模式 */
-        #ehs-avatar-container {
-            position: fixed;
-            bottom: 0;
-            right: 20px;
-            z-index: 9999;
-            width: auto;
-            height: auto;
-            pointer-events: none;
-        }
-
-        /* Idle 状态：隐藏 */
-        #ehs-avatar-container.state-idle {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        /* Active 状态：显示 HUD 元素 */
-        #ehs-avatar-container.state-active {
-            opacity: 1;
-        }
-
-        /* Listening 状态 */
-        #ehs-avatar-container.state-listening {
-            opacity: 1;
-        }
-
-        #ehs-avatar-container.state-listening .speech-bubble {
-            border-left-color: #FF4D4D;
-        }
-
-        #ehs-avatar-container.state-listening .voice-wave-mini {
-            opacity: 1;
-        }
-
-        /* 呼吸灯动画 */
-        @keyframes breathe {
-            0%, 100% {
-                transform: scale(1);
-                box-shadow: 
-                    0 0 20px rgba(0, 240, 255, 0.3),
-                    0 0 40px rgba(0, 240, 255, 0.2),
-                    inset 0 0 20px rgba(0, 240, 255, 0.1);
-            }
-            50% {
-                transform: scale(1.05);
-                box-shadow: 
-                    0 0 30px rgba(0, 240, 255, 0.5),
-                    0 0 60px rgba(0, 240, 255, 0.3),
-                    inset 0 0 30px rgba(0, 240, 255, 0.2);
-            }
-        }
-
-        /* 悬浮气泡（Speech Bubble）- 相对数字人定位，支持历史记录 */
-        .speech-bubble {
-            position: absolute;
-            bottom: 65%;
-            right: 85%;
-            min-height: 60px;
-            max-height: 200px;
-            min-width: 400px;
-            max-width: 450px;
-            width: auto;
-            margin-right: -20px;
-            padding: 18px 22px;
-            padding-right: 45px;
-            padding-top: 45px;
-            background: rgba(0, 20, 40, 0.6);
-            backdrop-filter: blur(10px);
-            border-left: 3px solid #00F0FF;
-            border-radius: 12px;
-            color: #fff;
-            font-family: 'Roboto', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            pointer-events: auto;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            z-index: 10000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* 对话记录容器 - 可滚动 */
-        .speech-bubble .message-content {
-            white-space: normal;
-            word-wrap: break-word;
-            word-break: break-word;
-            width: 100%;
             position: relative;
-            z-index: 2;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        /* Avatar Image */
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: bottom center;
             display: block;
-            line-height: 1.6;
+            pointer-events: none; /* Pass clicks to container */
+            /* Soft fade at the bottom to blend with glow */
+            -webkit-mask-image: linear-gradient(to top, transparent 0%, black 15%, black 100%);
+            mask-image: linear-gradient(to top, transparent 0%, black 15%, black 100%);
+            /* Slight drop shadow for depth */
+            filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.2));
+        }
+
+        /* Holographic Base (Glow) */
+        .holographic-base {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120%;
+            height: 40px;
+            background: radial-gradient(ellipse at center, rgba(0, 255, 255, 0.6) 0%, rgba(0, 255, 255, 0) 70%);
+            mix-blend-mode: screen;
+            pointer-events: none;
+            /* Sync with breathing */
+            animation: base-pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes base-pulse {
+            0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(0.9); }
+            50% { opacity: 0.8; transform: translateX(-50%) scale(1.1); }
+        }
+
+        /* =========================================
+           3. HUD Bubble
+           ========================================= */
+        .hud-bubble {
+            position: absolute;
+            top: 5%;
+            right: 85%; /* Moved slightly left */
+            width: 320px; /* Increased width for charts */
             max-height: 350px;
             overflow-y: auto;
-            overflow-x: hidden;
-            padding-right: 8px;
-        }
-
-        /* 消息项样式 */
-        .speech-bubble .message-item {
-            margin-bottom: 16px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            border-left: 2px solid transparent;
-        }
-
-        .speech-bubble .message-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .speech-bubble .message-item.user {
-            border-left-color: #00F0FF;
-            background: rgba(0, 240, 255, 0.08);
-        }
-
-        .speech-bubble .message-item.assistant {
-            border-left-color: #FF4D4D;
-            background: rgba(255, 77, 77, 0.08);
-        }
-
-        .speech-bubble .message-item .message-sender {
-            font-weight: 600;
+            padding: 12px;
+            background: rgba(0, 20, 30, 0.7);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 12px;
+            /* Glassmorphism */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.1), inset 0 0 10px rgba(0, 255, 255, 0.05);
+            
+            color: #fff;
             font-size: 14px;
-            margin-bottom: 6px;
-            opacity: 0.9;
-        }
-
-        .speech-bubble .message-item.user .message-sender {
-            color: #00F0FF;
-        }
-
-        .speech-bubble .message-item.assistant .message-sender {
-            color: #FF4D4D;
-        }
-
-        .speech-bubble .message-item .message-text {
-            font-size: 15px;
-            line-height: 1.6;
-        }
-
-        /* 图表缩略图样式 */
-        .speech-bubble .chart-thumbnail {
-            margin-top: 12px;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(0, 240, 255, 0.3);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            line-height: 1.5;
+            pointer-events: auto;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            position: relative;
-        }
-
-        .speech-bubble .chart-thumbnail:hover {
-            border-color: rgba(0, 240, 255, 0.6);
-            background: rgba(0, 0, 0, 0.4);
-            transform: scale(1.02);
-            box-shadow: 0 2px 10px rgba(0, 240, 255, 0.3);
-        }
-
-        .speech-bubble .chart-thumbnail .chart-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: currentColor;
-            text-shadow: 0 0 10px currentColor;
-            line-height: 1;
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-        }
-
-        .speech-bubble .chart-thumbnail .chart-value .unit {
-            font-size: 18px;
-            opacity: 0.8;
-        }
-
-        .speech-bubble .chart-thumbnail .chart-label {
-            font-size: 14px;
-            opacity: 0.9;
-            font-weight: 500;
-        }
-
-        .speech-bubble .chart-thumbnail .chart-status {
-            font-size: 12px;
-            padding: 4px 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            border: 1px solid currentColor;
-            opacity: 0.9;
-        }
-
-        .speech-bubble .message-item.user .chart-thumbnail {
-            border-color: rgba(0, 240, 255, 0.3);
-            color: #00F0FF;
-        }
-
-        .speech-bubble .message-item.assistant .chart-thumbnail {
-            border-color: rgba(255, 77, 77, 0.3);
-            color: #FF4D4D;
-        }
-
-        .speech-bubble .message-item.assistant .chart-thumbnail.status-normal {
-            border-color: rgba(0, 240, 255, 0.3);
-            color: #00F0FF;
-        }
-
-        .speech-bubble .message-item.assistant .chart-thumbnail.status-alert {
-            border-color: rgba(255, 77, 77, 0.5);
-            color: #FF4D4D;
-        }
-
-        .speech-bubble .chart-thumbnail .expand-icon {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            font-size: 12px;
-            opacity: 0.6;
-            transition: opacity 0.3s ease;
-        }
-
-        .speech-bubble .chart-thumbnail:hover .expand-icon {
-            opacity: 1;
-        }
-
-        /* 清理历史按钮 */
-        .speech-bubble .clear-history-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 28px;
-            height: 28px;
-            background: rgba(255, 77, 77, 0.3);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 77, 77, 0.5);
-            border-radius: 50%;
-            color: #FF4D4D;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            transition: all 0.3s ease;
-            z-index: 10001;
-        }
-
-        .speech-bubble.show .clear-history-btn {
-            display: flex;
-        }
-
-        .speech-bubble .clear-history-btn:hover {
-            background: rgba(255, 77, 77, 0.5);
-            transform: scale(1.1);
-            box-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
-        }
-
-        /* 滚动条样式 */
-        .speech-bubble .message-content::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .speech-bubble .message-content::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 3px;
-        }
-
-        .speech-bubble .message-content::-webkit-scrollbar-thumb {
-            background: rgba(0, 240, 255, 0.3);
-            border-radius: 3px;
-        }
-
-        .speech-bubble .message-content::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 240, 255, 0.5);
-        }
-
-        /* 气泡指向三角形 */
-        .speech-bubble::after {
-            content: '';
-            position: absolute;
-            right: -12px;
-            bottom: 30px;
-            width: 0;
-            height: 0;
-            border-top: 12px solid transparent;
-            border-bottom: 12px solid transparent;
-            border-left: 12px solid rgba(0, 20, 40, 0.6);
-            filter: blur(2px);
-        }
-
-        .speech-bubble::before {
-            content: '';
-            position: absolute;
-            right: -10px;
-            bottom: 32px;
-            width: 0;
-            height: 0;
-            border-top: 10px solid transparent;
-            border-bottom: 10px solid transparent;
-            border-left: 10px solid rgba(0, 20, 40, 0.6);
-            z-index: 1;
-        }
-
-        .speech-bubble.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .speech-bubble p {
-            margin: 0;
-            margin-bottom: 10px;
-        }
-
-        .speech-bubble p:last-child {
-            margin-bottom: 0;
-        }
-
-
-        /* 强制打断按钮 - 相对数字人定位 */
-        .interrupt-btn {
-            position: absolute;
-            bottom: 50%;
-            left: -50px;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 77, 77, 0.3);
-            backdrop-filter: blur(10px);
-            border: 2px solid #FF4D4D;
-            border-radius: 50%;
-            color: #FF4D4D;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            z-index: 10002;
-            box-shadow: 0 0 20px rgba(255, 77, 77, 0.5);
-            animation: interruptPulse 2s ease-in-out infinite;
-            pointer-events: auto;
-        }
-
-        .interrupt-btn.show {
-            display: flex;
-        }
-
-        .interrupt-btn:hover {
-            background: rgba(255, 77, 77, 0.5);
-            transform: scale(1.1);
-            box-shadow: 0 0 30px rgba(255, 77, 77, 0.8);
-        }
-
-        @keyframes interruptPulse {
-            0%, 100% {
-                box-shadow: 0 0 20px rgba(255, 77, 77, 0.5);
-            }
-            50% {
-                box-shadow: 0 0 30px rgba(255, 77, 77, 0.8);
-            }
-        }
-
-        /* Speaking 状态 */
-        #avatar-full-body.state-speaking .interrupt-btn {
-            display: flex;
-        }
-
-        /* 输入区域（双模态：语音/键盘） */
-        .input-area {
-            position: fixed;
-            bottom: 100px;
-            right: 50%;
-            transform: translateX(50%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
             gap: 12px;
-            pointer-events: auto;
-            opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 10001;
+            
+            /* Enable selection and pointer events */
+            user-select: text; 
+            cursor: auto;
         }
 
-        .input-area.show {
-            opacity: 1;
+        /* Prevent drag on bubble interaction */
+        .hud-bubble * {
+            user-select: text;
         }
 
-        /* 语音模式容器 */
-        #mode-voice {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+        /* Scrollbar Styling */
+        .hud-bubble::-webkit-scrollbar {
+            width: 4px;
         }
-
-        /* 键盘模式容器 */
-        #mode-keyboard {
-            display: none;
-            align-items: center;
-            gap: 12px;
+        .hud-bubble::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
         }
-
-        .input-area.mode-keyboard #mode-voice {
-            display: none;
-        }
-
-        .input-area.mode-keyboard #mode-keyboard {
-            display: flex;
-        }
-
-        /* 语音波形条 */
-        .voice-wave-mini {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 15px 30px;
-            background: rgba(0, 20, 40, 0.4);
-            backdrop-filter: blur(8px);
-            border-radius: 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .voice-wave-mini:hover {
-            background: rgba(0, 20, 40, 0.6);
-        }
-
-        .voice-wave-mini .mini-wave-bar {
-            width: 3px;
-            height: 20px;
-            background: linear-gradient(to top, #00F0FF, #00F0FF);
+        .hud-bubble::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.3);
             border-radius: 2px;
-            animation: miniWave 1s ease-in-out infinite;
-            box-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+        }
+        
+        .msg-item {
+            padding: 8px 12px;
+            border-radius: 8px;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .msg-user {
+            align-self: flex-end;
+            background: rgba(0, 255, 255, 0.2);
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            color: #ccffff;
+        }
+        
+        .msg-system {
+            align-self: flex-start;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
         }
 
-        .voice-wave-mini.listening .mini-wave-bar {
-            background: linear-gradient(to top, #FF4D4D, #FF4D4D);
-            box-shadow: 0 0 8px rgba(255, 77, 77, 0.8);
-            animation: miniWaveListening 0.8s ease-in-out infinite;
+        .chart-container {
+            width: 100%;
+            height: 200px;
+            margin-top: 8px;
         }
 
-        .voice-wave-mini .mini-wave-bar:nth-child(1) { animation-delay: 0s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(2) { animation-delay: 0.1s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(3) { animation-delay: 0.2s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(4) { animation-delay: 0.3s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(5) { animation-delay: 0.4s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(6) { animation-delay: 0.4s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(7) { animation-delay: 0.3s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(8) { animation-delay: 0.2s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(9) { animation-delay: 0.1s; }
-        .voice-wave-mini .mini-wave-bar:nth-child(10) { animation-delay: 0s; }
-
-        /* 切换按钮 */
-        #btn-toggle-input {
-            width: 36px;
-            height: 36px;
-            background: rgba(0, 240, 255, 0.2);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(0, 240, 255, 0.4);
-            border-radius: 50%;
-            color: #00F0FF;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            flex-shrink: 0;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Decoration line removed or adjusted since bubble grows */
+        .hud-bubble::after {
+            display: none; 
         }
 
-        #btn-toggle-input:hover {
-            background: rgba(0, 240, 255, 0.3);
-            transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+        /* =========================================
+           4. Input Bar
+           ========================================= */
+        .input-container {
+            position: absolute;
+            bottom: -70px; /* Below the base */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 280px;
+            height: 50px;
+            z-index: 1001;
+            perspective: 1000px;
         }
 
-        #btn-toggle-input i.fa-keyboard {
-            display: block;
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
         }
 
-        #btn-toggle-input i.fa-microphone {
-            display: none;
-        }
-
-        .input-area.mode-keyboard #btn-toggle-input i.fa-keyboard {
-            display: none;
-        }
-
-        .input-area.mode-keyboard #btn-toggle-input i.fa-microphone {
-            display: block;
-        }
-
-        /* HUD 输入框 */
-        .hud-input {
-            min-width: 300px;
-            padding: 10px 0;
-            background: transparent;
-            border: none;
-            border-bottom: 2px solid rgba(0, 240, 255, 0.5);
-            color: #00F0FF;
-            font-family: 'Roboto', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            font-size: 16px;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-
-        .hud-input::placeholder {
-            color: rgba(0, 240, 255, 0.5);
-        }
-
-        .hud-input:focus {
-            border-bottom-color: #00F0FF;
-            box-shadow: 0 2px 10px rgba(0, 240, 255, 0.3);
-        }
-
-        /* 发送按钮 */
-        .send-btn {
-            width: 40px;
-            height: 40px;
-            background: rgba(0, 240, 255, 0.2);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(0, 240, 255, 0.4);
-            border-radius: 50%;
-            color: #00F0FF;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            flex-shrink: 0;
-        }
-
-        .send-btn:hover {
-            background: rgba(0, 240, 255, 0.3);
-            transform: scale(1.1);
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
-        }
-
-        .send-btn:active {
-            transform: scale(0.95);
-        }
-
-        @keyframes miniWave {
-            0%, 100% {
-                transform: scaleY(0.3);
-                opacity: 0.5;
-            }
-            50% {
-                transform: scaleY(1);
-                opacity: 1;
-            }
-        }
-
-        @keyframes miniWaveListening {
-            0%, 100% {
-                transform: scaleY(0.4);
-                opacity: 0.7;
-            }
-            50% {
-                transform: scaleY(1.3);
-                opacity: 1;
-            }
-        }
-
-        /* 激活按钮（启动交互） */
-        .activation-trigger {
-            position: fixed;
-            bottom: 40px;
-            right: 40px;
-            width: 60px;
-            height: 60px;
-            background: rgba(0, 240, 255, 0.2);
-            backdrop-filter: blur(10px);
-            border: 2px solid rgba(0, 240, 255, 0.5);
-            border-radius: 50%;
-            color: #00F0FF;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            transition: all 0.3s ease;
-            z-index: 9997;
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
-            animation: breathe 2s ease-in-out infinite;
-        }
-
-        .activation-trigger:hover {
-            background: rgba(0, 240, 255, 0.3);
-            transform: scale(1.1);
-            box-shadow: 0 0 30px rgba(0, 240, 255, 0.5);
-        }
-
-        .activation-trigger.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        /* 呼吸灯动画 */
-        @keyframes breathe {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.05);
-            }
-        }
-
-
-        /* 打字机效果光标 */
-        .typewriter-cursor {
-            display: inline-block;
-            width: 2px;
-            height: 1em;
-            background: #00F0FF;
-            margin-left: 2px;
-            animation: blink 1s step-end infinite;
-            vertical-align: baseline;
-        }
-
-        @keyframes blink {
-            0%, 50% {
-                opacity: 1;
-            }
-            51%, 100% {
-                opacity: 0;
-            }
-        }
-
-        /* 数据卡片弹窗层 */
-        #data-card-layer {
-            position: fixed;
+        /* Common style for modes */
+        .mode-panel {
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10000;
-            pointer-events: none;
+            border-radius: 25px;
+            background: rgba(0, 10, 20, 0.7);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-
-        /* 数据卡片 - 增强图表样式 */
-        .data-card {
-            min-width: 380px;
-            padding: 35px 45px;
-            padding-top: 50px;
-            background: rgba(10, 14, 39, 0.95);
-            backdrop-filter: blur(20px);
-            border: 2px solid;
-            border-radius: 16px;
-            box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.6),
-                0 0 50px currentColor,
-                inset 0 0 30px rgba(255, 255, 255, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 25px;
-            pointer-events: auto;
-            transform: scale(0.8);
-            opacity: 0;
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            position: relative;
-            overflow: visible;
-        }
-
-        /* 数据卡片关闭按钮 */
-        .data-card .close-card-btn {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            width: 32px;
-            height: 32px;
-            background: rgba(255, 77, 77, 0.3);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 77, 77, 0.5);
-            border-radius: 50%;
-            color: #FF4D4D;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            z-index: 10001;
         }
 
-        .data-card .close-card-btn:hover {
-            background: rgba(255, 77, 77, 0.5);
-            transform: scale(1.1);
-            box-shadow: 0 0 15px rgba(255, 77, 77, 0.6);
-        }
-
-        .data-card .close-card-btn:active {
+        .mode-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
             transform: scale(0.95);
         }
 
-        /* 数据卡片顶部装饰条 */
-        .data-card::after {
-            content: '';
+        /* Voice Mode Animation */
+        .voice-wave {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            height: 24px;
+        }
+        .wave-bar {
+            width: 4px;
+            background: #0ff;
+            border-radius: 2px;
+            animation: wave-anim 1s infinite ease-in-out;
+            box-shadow: 0 0 8px #0ff;
+        }
+        .wave-bar:nth-child(1) { height: 10px; animation-delay: 0.0s; }
+        .wave-bar:nth-child(2) { height: 18px; animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { height: 24px; animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { height: 18px; animation-delay: 0.1s; }
+        .wave-bar:nth-child(5) { height: 10px; animation-delay: 0.0s; }
+
+        @keyframes wave-anim {
+            0%, 100% { height: 8px; opacity: 0.5; }
+            50% { height: 24px; opacity: 1; }
+        }
+
+        /* Keyboard Mode */
+        .keyboard-input {
+            width: 85%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 14px;
+            text-align: left;
+        }
+        .keyboard-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .input-icon {
+            color: #0ff;
+            margin-right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            transition: background 0.2s ease, transform 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .input-icon:hover {
+            background: rgba(0, 255, 255, 0.1);
+            transform: scale(1.1);
+        }
+
+        .send-btn, .stop-btn {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0ff;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        .send-btn:active, .stop-btn:active {
+            transform: scale(0.9);
+        }
+        .send-btn:hover, .stop-btn:hover {
+            color: #fff;
+        }
+        
+        .stop-btn {
+            color: #ff4d4d;
+        }
+        .stop-btn:hover {
+            color: #ff9999;
+        }
+
+        .send-btn.hidden, .stop-btn.hidden {
+            display: none;
+        }
+
+        /* =========================================
+           5. Controls (Minimize)
+           ========================================= */
+        .minimize-btn {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, transparent, currentColor, transparent);
-            opacity: 0.6;
+            top: -10px;
+            right: -10px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            color: #0ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1002;
+            transition: all 0.2s ease;
+            opacity: 0; /* Hidden by default, show on hover/interaction or always? Let's show always for usability */
+            opacity: 0.8;
         }
-
-        .data-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(
-                45deg,
-                transparent 30%,
-                rgba(255, 255, 255, 0.05) 50%,
-                transparent 70%
-            );
-            animation: cardShine 3s linear infinite;
-        }
-
-        @keyframes cardShine {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .data-card.show {
-            transform: scale(1);
+        .minimize-btn:hover {
+            background: rgba(0, 255, 255, 0.2);
+            transform: scale(1.1);
             opacity: 1;
         }
-
-        .data-card.fade-out {
-            transform: scale(0.8);
-            opacity: 0;
-        }
-
-        /* 数据卡片 - 正常状态（绿色） */
-        .data-card.status-normal {
-            border-color: #00F0FF;
-            color: #00F0FF;
-        }
-
-        .data-card.status-normal .data-value {
-            color: #00F0FF;
-            text-shadow: 0 0 20px rgba(0, 240, 255, 0.8);
-        }
-
-        .data-card.status-normal .data-label {
-            color: #00F0FF;
-        }
-
-        /* 数据卡片 - 报警状态（红色） */
-        .data-card.status-alert {
-            border-color: #FF4D4D;
-            color: #FF4D4D;
-            animation: alertPulse 2s ease-in-out infinite;
-        }
-
-        @keyframes alertPulse {
-            0%, 100% {
-                box-shadow: 
-                    0 8px 32px rgba(0, 0, 0, 0.6),
-                    0 0 40px rgba(255, 77, 77, 0.4),
-                    inset 0 0 20px rgba(255, 255, 255, 0.05);
-            }
-            50% {
-                box-shadow: 
-                    0 8px 32px rgba(0, 0, 0, 0.6),
-                    0 0 60px rgba(255, 77, 77, 0.8),
-                    inset 0 0 30px rgba(255, 255, 255, 0.1);
-            }
-        }
-
-        .data-card.status-alert .data-value {
-            color: #FF4D4D;
-            text-shadow: 0 0 20px rgba(255, 77, 77, 0.8);
-        }
-
-        .data-card.status-alert .data-label {
-            color: #FF4D4D;
-        }
-
-        /* 数据值 - 图表样式 */
-        .data-value {
-            font-size: 72px;
-            font-weight: 700;
-            line-height: 1;
-            letter-spacing: -3px;
-            font-variant-numeric: tabular-nums;
-            text-shadow: 
-                0 0 20px currentColor,
-                0 0 40px currentColor,
-                0 0 60px currentColor;
-            position: relative;
-            z-index: 1;
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-        }
-
-        .data-value .unit {
-            font-size: 32px;
-            font-weight: 400;
-            opacity: 0.8;
-            letter-spacing: 0;
-        }
-
-        /* 数据标签 - 图表样式 */
-        .data-label {
-            font-size: 20px;
-            font-weight: 600;
-            line-height: 1.4;
-            text-shadow: 0 0 15px currentColor;
-            position: relative;
-            z-index: 1;
-            text-align: center;
-            width: 100%;
-        }
-
-        .data-label .label-text {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 22px;
-            letter-spacing: 1px;
-        }
-
-        .data-label .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 16px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            border-radius: 20px;
-            border: 1px solid currentColor;
-            margin-top: 12px;
-        }
-
-        .data-label .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
+        /* SVG Icon for minimize */
+        .icon-minus {
+            width: 14px;
+            height: 2px;
             background: currentColor;
-            box-shadow: 0 0 10px currentColor;
-            animation: statusPulse 2s ease-in-out infinite;
         }
 
-        @keyframes statusPulse {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.6;
-                transform: scale(1.2);
-            }
-        }
-
-        /* 图表背景装饰 */
-        .data-card .chart-bg {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 200px;
-            height: 200px;
+        /* =========================================
+           6. Floating Action Button (FAB)
+           ========================================= */
+        .fab-trigger {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
-            background: radial-gradient(circle, currentColor 0%, transparent 70%);
-            opacity: 0.05;
-            z-index: 0;
+            background: radial-gradient(circle at 30% 30%, #0ff, #008888);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6), 0 0 40px rgba(0, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            cursor: pointer;
+            
+            /* Initial State: Hidden */
+            opacity: 0;
+            transform: scale(0);
+            pointer-events: none;
+            
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+
+        .fab-trigger.active {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+        
+        /* Pulse ring */
+        .fab-trigger::before {
+            content: '';
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            animation: ring-pulse 2s infinite;
+        }
+        
+        @keyframes ring-pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .fab-icon {
+            width: 24px;
+            height: 24px;
+            fill: #fff;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
+
+        /* Minimized State applied to container */
+        #avatar-container.minimized {
+            opacity: 0;
+            transform: scale(0) translate3d(0,0,0) !important; 
+            /* Note: We need to override the inline translate3d style set by JS. 
+               However, inline styles have high specificity. 
+               A cleaner way in JS is to clear the transform or handle the class logic carefully.
+               Here !important forces the scale down, but the position might be weird if translate is also there.
+               Actually, scale(0) makes position irrelevant visually, but let's handle it in JS for cleanliness.
+            */
+            pointer-events: none;
+        }
+
     </style>
 </head>
 <body>
-    <!-- Dashboard 背景 -->
-    <div id="dashboard-bg"></div>
 
-    <!-- 数据卡片弹窗层 -->
-    <div id="data-card-layer"></div>
+    <!-- Floating Action Button (Resume) -->
+    <div id="fab-trigger" class="fab-trigger active">
+        <svg class="fab-icon" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+        </svg>
+    </div>
 
-    <!-- 全尺寸数字人立绘 -->
-    <div id="avatar-full-body" class="state-hidden">
-        <!-- 最小化按钮 -->
-        <button class="minimize-btn" id="minimize-btn" title="最小化">
-            <i class="fas fa-chevron-down"></i>
-        </button>
-
-        <!-- 悬浮气泡（对话显示）- 作为数字人的子元素 -->
-        <div class="speech-bubble" id="speech-bubble">
-            <button class="clear-history-btn" id="clear-history-btn" title="清理历史对话">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-            <div class="message-content" id="speech-content"></div>
+    <!-- Main Avatar Container -->
+    <div id="avatar-container" class="minimized">
+        <!-- Minimize Button -->
+        <div id="minimize-btn" class="minimize-btn" title="收起">
+            <div class="icon-minus"></div>
         </div>
 
-        <!-- 强制打断按钮 - 作为数字人的子元素 -->
-        <button class="interrupt-btn" id="interrupt-btn" title="打断 AI 说话">
-            <i class="fas fa-stop"></i>
-        </button>
-
-        <img src="jimeng.png" alt="EHS AI 数字人助手">
-    </div>
-
-    <!-- 激活触发按钮 -->
-    <div class="activation-trigger" id="activation-trigger" title="点击启动 AI 助手">
-        <i class="fas fa-comments"></i>
-    </div>
-
-    <!-- EHS AI 助手容器 - HUD 模式 -->
-    <div id="ehs-avatar-container" class="state-idle">
-
-        <!-- 输入区域（双模态：语音/键盘） -->
-        <div class="input-area" id="input-area">
-            <!-- 语音模式容器 -->
-            <div id="mode-voice">
-                <div class="voice-wave-mini" id="voice-wave-mini">
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
-                    <div class="mini-wave-bar"></div>
+        <!-- Breathing Wrapper -->
+        <div class="avatar-breathing-wrapper">
+            
+            <!-- HUD Bubble -->
+            <div class="hud-bubble" id="chat-history">
+                <div class="msg-item msg-system">
+                    <strong>EHS 智能助手</strong><br>
+                    <span>全息系统正常，等待指令...</span>
                 </div>
             </div>
 
-            <!-- 键盘模式容器 -->
-            <div id="mode-keyboard">
-                <input type="text" class="hud-input" id="hud-input" placeholder="输入指令...">
-                <button class="send-btn" id="send-btn" title="发送">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+            <!-- Avatar -->
+            <img src="jimeng.png" alt="Digital Human" class="avatar-img" draggable="false">
+
+            <!-- Holographic Base -->
+            <div class="holographic-base"></div>
+
+            <!-- Input Bar -->
+            <div id="input-container" class="input-container">
+                <div class="input-wrapper">
+                    <!-- Voice Mode (Default) -->
+                    <div id="mode-voice" class="mode-panel">
+                        <div class="voice-wave">
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                        </div>
+                        <span style="margin-left: 10px; color: #0ff; font-size: 13px;">点击切换键盘</span>
+                    </div>
+
+                    <!-- Keyboard Mode -->
+                    <div id="mode-keyboard" class="mode-panel hidden">
+                        <div class="input-icon mode-switch-btn" title="切换语音输入">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.66 9 5v6c0 1.66 1.34 3 3 3z"/>
+                                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                            </svg>
+                        </div>
+                        <input type="text" class="keyboard-input" placeholder="输入您的问题...">
+                        
+                        <!-- Send Button -->
+                        <div class="send-btn" title="发送">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                            </svg>
+                        </div>
+
+                        <!-- Stop Button (Hidden by default) -->
+                        <div class="stop-btn hidden" title="停止生成">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- 模式切换按钮 -->
-            <button id="btn-toggle-input" title="切换输入模式">
-                <i class="fas fa-keyboard"></i>
-                <i class="fas fa-microphone"></i>
-            </button>
         </div>
     </div>
 
     <script>
-        /**
-         * EHS AI 数字人助手控制器 - HUD 模式
-         */
-        class AvatarController {
-            constructor() {
-                this.container = document.getElementById('ehs-avatar-container');
-                this.avatarFullBody = document.getElementById('avatar-full-body');
-                this.activationTrigger = document.getElementById('activation-trigger');
-                this.minimizeBtn = document.getElementById('minimize-btn');
-                this.speechBubble = document.getElementById('speech-bubble');
-                this.speechContent = document.getElementById('speech-content');
-                this.interruptBtn = document.getElementById('interrupt-btn');
-                this.inputArea = document.getElementById('input-area');
-                this.modeVoice = document.getElementById('mode-voice');
-                this.modeKeyboard = document.getElementById('mode-keyboard');
-                this.voiceWaveMini = document.getElementById('voice-wave-mini');
-                this.btnToggleInput = document.getElementById('btn-toggle-input');
-                this.hudInput = document.getElementById('hud-input');
-                this.sendBtn = document.getElementById('send-btn');
-                this.dataCardLayer = document.getElementById('data-card-layer');
-                this.clearHistoryBtn = document.getElementById('clear-history-btn');
-                
-                this.isActive = false;
-                this.isMinimized = false;
-                this.isDragging = false;
-                this.isListening = false;
-                this.isSpeaking = false;
-                this.inputMode = 'voice'; // 'voice' | 'keyboard'
-                this.listenTimeout = null;
-                this.dataCardTimeout = null;
-                this.currentMessagePromise = null;
-                this.typeTextInterval = null;
-                this.lastPosition = null; // 保存展开前的位置
-                this.messageHistory = []; // 对话历史记录
-                
-                this.init();
-            }
-
-            /**
-             * 初始化事件监听
-             */
-            init() {
-                // 激活按钮点击事件
-                if (this.activationTrigger) {
-                    this.activationTrigger.addEventListener('click', () => {
-                        this.activate();
-                    });
-                }
-
-                // 语音波形条点击事件（开始/停止语音）
-                if (this.voiceWaveMini) {
-                    this.voiceWaveMini.addEventListener('click', () => {
-                        this.handleVoiceWaveClick();
-                    });
-                }
-
-                // 模式切换按钮点击事件
-                if (this.btnToggleInput) {
-                    this.btnToggleInput.addEventListener('click', () => {
-                        this.switchInputMode();
-                    });
-                }
-
-                // 键盘输入框回车事件
-                if (this.hudInput) {
-                    this.hudInput.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') {
-                            this.handleKeyboardInput();
-                        }
-                    });
-                }
-
-                // 发送按钮点击事件
-                if (this.sendBtn) {
-                    this.sendBtn.addEventListener('click', () => {
-                        this.handleKeyboardInput();
-                    });
-                }
-
-                // 强制打断按钮点击事件
-                if (this.interruptBtn) {
-                    this.interruptBtn.addEventListener('click', () => {
-                        this.interruptSpeaking();
-                    });
-                }
-
-                // 清理历史对话按钮点击事件
-                if (this.clearHistoryBtn) {
-                    this.clearHistoryBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.clearHistoryConfirm();
-                    });
-                }
-
-                // 收起/展开按钮点击事件
-                if (this.minimizeBtn) {
-                    this.minimizeBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.toggleMinimize();
-                    });
-                }
-
-                // 最小化状态下点击数字人展开
-                if (this.avatarFullBody) {
-                    this.avatarFullBody.addEventListener('click', (e) => {
-                        if (this.isMinimized && !this.isDragging) {
-                            this.toggleMinimize();
-                        }
-                    });
-                }
-
-                // 初始化拖拽功能
-                if (this.avatarFullBody) {
-                    this.initDrag();
-                }
-            }
-
-            /**
-             * 初始化拖拽功能
-             */
-            initDrag() {
-                let isDragging = false;
-                let startX, startY, initialX, initialY;
-                let savedPosition = localStorage.getItem('avatarPosition');
-
-                // 恢复保存的位置
-                if (savedPosition && !this.isMinimized) {
-                    try {
-                        const pos = JSON.parse(savedPosition);
-                        this.avatarFullBody.style.bottom = pos.bottom + 'px';
-                        this.avatarFullBody.style.right = pos.right + 'px';
-                        this.avatarFullBody.style.top = 'auto';
-                        this.avatarFullBody.style.left = 'auto';
-                    } catch (e) {
-                        console.warn('Failed to restore avatar position');
-                    }
-                }
-
-                // 鼠标按下
-                this.avatarFullBody.addEventListener('mousedown', (e) => {
-                    // 如果点击的是按钮，不触发拖拽
-                    if (e.target.closest('button') || e.target.closest('.speech-bubble')) {
-                        return;
-                    }
-
-                    if (this.isMinimized) return;
-
-                    isDragging = true;
-                    this.isDragging = true;
-                    this.avatarFullBody.classList.add('dragging');
-
-                    const rect = this.avatarFullBody.getBoundingClientRect();
-                    initialX = rect.left;
-                    initialY = rect.top;
-                    startX = e.clientX;
-                    startY = e.clientY;
-
-                    e.preventDefault();
-                });
-
-                // 鼠标移动
-                document.addEventListener('mousemove', (e) => {
-                    if (!isDragging || this.isMinimized) return;
-
-                    const deltaX = e.clientX - startX;
-                    const deltaY = e.clientY - startY;
-
-                    let newX = initialX + deltaX;
-                    let newY = initialY + deltaY;
-
-                    // 限制在屏幕内
-                    const maxX = window.innerWidth - this.avatarFullBody.offsetWidth;
-                    const maxY = window.innerHeight - this.avatarFullBody.offsetHeight;
-
-                    newX = Math.max(0, Math.min(newX, maxX));
-                    newY = Math.max(0, Math.min(newY, maxY));
-
-                    // 使用 top/left 定位，覆盖 bottom/right
-                    this.avatarFullBody.style.top = newY + 'px';
-                    this.avatarFullBody.style.left = newX + 'px';
-                    this.avatarFullBody.style.bottom = 'auto';
-                    this.avatarFullBody.style.right = 'auto';
-                });
-
-                // 鼠标释放
-                document.addEventListener('mouseup', () => {
-                    if (isDragging) {
-                        isDragging = false;
-                        this.isDragging = false;
-                        this.avatarFullBody.classList.remove('dragging');
-
-                        // 保存位置
-                        const rect = this.avatarFullBody.getBoundingClientRect();
-                        const position = {
-                            top: rect.top,
-                            left: rect.left,
-                            bottom: window.innerHeight - rect.bottom,
-                            right: window.innerWidth - rect.right
-                        };
-                        localStorage.setItem('avatarPosition', JSON.stringify(position));
-                    }
-                });
-            }
-
-            /**
-             * 激活 AI 助手
-             */
-            activate() {
-                if (this.isActive) return;
-                
-                this.isActive = true;
-                
-                // 显示数字人
-                if (this.avatarFullBody) {
-                    this.avatarFullBody.classList.remove('state-hidden');
-                    this.avatarFullBody.classList.add('state-visible');
-                }
-                
-                // 显示 HUD 元素
-                if (this.container) {
-                    this.container.classList.remove('state-idle');
-                    this.container.classList.add('state-active');
-                }
-                
-                // 显示输入区域
-                if (this.inputArea) {
-                    this.inputArea.classList.add('show');
-                }
-                
-                // 隐藏激活按钮
-                if (this.activationTrigger) {
-                    this.activationTrigger.classList.add('hidden');
-                }
-                
-                // 显示欢迎消息
-                setTimeout(() => {
-                    this.showSpeechBubble('您好，我是 EHS AI 助手\n点击下方波形条开始语音交互');
-                }, 500);
-            }
-
-            /**
-             * 切换最小化状态
-             */
-            toggleMinimize() {
-                if (!this.avatarFullBody || !this.isActive) return;
-
-                if (this.isMinimized) {
-                    // 展开
-                    this.isMinimized = false;
-                    this.avatarFullBody.classList.remove('state-minimized');
-                    this.avatarFullBody.classList.add('state-visible');
-                    
-                    // 恢复位置
-                    if (this.lastPosition) {
-                        this.avatarFullBody.style.top = this.lastPosition.top + 'px';
-                        this.avatarFullBody.style.left = this.lastPosition.left + 'px';
-                        this.avatarFullBody.style.bottom = 'auto';
-                        this.avatarFullBody.style.right = 'auto';
-                    } else {
-                        // 恢复默认位置或保存的位置
-                        const savedPosition = localStorage.getItem('avatarPosition');
-                        if (savedPosition) {
-                            try {
-                                const pos = JSON.parse(savedPosition);
-                                this.avatarFullBody.style.bottom = pos.bottom + 'px';
-                                this.avatarFullBody.style.right = pos.right + 'px';
-                                this.avatarFullBody.style.top = 'auto';
-                                this.avatarFullBody.style.left = 'auto';
-                            } catch (e) {
-                                this.avatarFullBody.style.bottom = '0';
-                                this.avatarFullBody.style.right = '20px';
-                            }
-                        } else {
-                            this.avatarFullBody.style.bottom = '0';
-                            this.avatarFullBody.style.right = '20px';
-                        }
-                    }
-                    
-                    // 显示 HUD 元素
-                    if (this.container) {
-                        this.container.classList.add('state-active');
-                    }
-                    if (this.inputArea) {
-                        this.inputArea.classList.add('show');
-                    }
-                    
-                    // 更新按钮图标
-                    if (this.minimizeBtn) {
-                        this.minimizeBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-                        this.minimizeBtn.title = '最小化';
-                        this.minimizeBtn.style.display = 'flex';
-                    }
-                } else {
-                    // 最小化 - 保存当前位置并切换到右下角
-                    this.isMinimized = true;
-                    
-                    // 保存当前位置
-                    const rect = this.avatarFullBody.getBoundingClientRect();
-                    this.lastPosition = {
-                        top: rect.top,
-                        left: rect.left,
-                        bottom: window.innerHeight - rect.bottom,
-                        right: window.innerWidth - rect.right
-                    };
-                    
-                    this.avatarFullBody.classList.remove('state-visible');
-                    this.avatarFullBody.classList.add('state-minimized');
-                    
-                    // 移动到右下角（悬浮球位置）
-                    this.avatarFullBody.style.bottom = '20px';
-                    this.avatarFullBody.style.right = '20px';
-                    this.avatarFullBody.style.top = 'auto';
-                    this.avatarFullBody.style.left = 'auto';
-                    
-                    // 隐藏 HUD 元素
-                    if (this.container) {
-                        this.container.classList.remove('state-active');
-                    }
-                    if (this.avatarFullBody) {
-                        this.avatarFullBody.classList.remove('state-speaking');
-                    }
-                    if (this.inputArea) {
-                        this.inputArea.classList.remove('show');
-                    }
-                    this.hideSpeechBubble();
-                    
-                    // 停止所有交互状态
-                    this.stopListening();
-                    this.interruptSpeaking();
-                    
-                    // 隐藏最小化按钮（悬浮球状态下不显示）
-                }
-            }
-
-            /**
-             * 停用 AI 助手
-             */
-            deactivate() {
-                if (!this.isActive) return;
-                
-                this.isActive = false;
-                
-                // 隐藏数字人
-                if (this.avatarFullBody) {
-                    this.avatarFullBody.classList.remove('state-visible');
-                    this.avatarFullBody.classList.add('state-hidden');
-                }
-                
-                // 隐藏 HUD 元素
-                if (this.container) {
-                    this.container.classList.remove('state-active');
-                    this.container.classList.remove('state-listening');
-                    this.container.classList.add('state-idle');
-                }
-                
-                // 隐藏输入区域
-                if (this.inputArea) {
-                    this.inputArea.classList.remove('show');
-                }
-                
-                // 隐藏气泡
-                if (this.speechBubble) {
-                    this.speechBubble.classList.remove('show');
-                }
-                
-                // 显示激活按钮
-                if (this.activationTrigger) {
-                    this.activationTrigger.classList.remove('hidden');
-                }
-                
-                // 停止监听
-                this.stopListening();
-            }
-
-            /**
-             * 处理语音波形条点击
-             */
-            handleVoiceWaveClick() {
-                if (!this.isActive) {
-                    this.activate();
-                    return;
-                }
-                
-                if (this.isListening) {
-                    this.stopListening();
-                } else {
-                    this.startListening();
-                }
-            }
-
-            /**
-             * 开始监听状态
-             */
-            startListening() {
-                if (this.isListening || !this.isActive) return;
-                
-                this.isListening = true;
-                
-                // 添加 listening 状态类
-                if (this.container) {
-                    this.container.classList.add('state-listening');
-                }
-                
-                // 语音波形条添加 listening 类
-                if (this.voiceWaveMini) {
-                    this.voiceWaveMini.classList.add('listening');
-                }
-                
-                // 显示监听提示
-                this.showSpeechBubble('正在监听...');
-                
-                // 2秒后模拟用户输入
-                this.listenTimeout = setTimeout(() => {
-                    this.simulateVoiceInput();
-                }, 2000);
-            }
-
-            /**
-             * 停止监听状态
-             */
-            stopListening() {
-                if (!this.isListening) return;
-                
-                this.isListening = false;
-                
-                // 清除定时器
-                if (this.listenTimeout) {
-                    clearTimeout(this.listenTimeout);
-                    this.listenTimeout = null;
-                }
-                
-                // 移除 listening 状态类
-                if (this.container) {
-                    this.container.classList.remove('state-listening');
-                }
-                
-                // 语音波形条移除 listening 类
-                if (this.voiceWaveMini) {
-                    this.voiceWaveMini.classList.remove('listening');
-                }
-            }
-
-            /**
-             * 模拟语音输入
-             */
-            simulateVoiceInput() {
-                // 停止监听状态
-                this.stopListening();
-                
-                // 模拟用户语音输入
-                const voiceText = '查询二号污水池 PH 值';
-                
-                // 显示用户输入
-                this.showSpeechBubble(voiceText, true);
-                
-                // 1秒后模拟 AI 回复（使用打字机效果）
-                setTimeout(() => {
-                    const aiResponse = '当前二号污水池 PH 值为 7.8，处于正常范围内。';
-                    // 图表数据
-                    const chartData = {
-                        value: '7.8',
-                        label: 'PH值',
-                        status: '正常',
-                        statusType: 'normal',
-                        unit: ''
-                    };
-                    
-                    this.showSpeechBubbleWithTypewriter(aiResponse, chartData).then(() => {
-                        // AI 回复完成后自动显示数据卡片（5秒后自动关闭）
-                        this.isSpeaking = false;
-                        if (this.avatarFullBody) {
-                            this.avatarFullBody.classList.remove('state-speaking');
-                        }
-                        // 自动显示完整数据卡片，5秒后自动关闭
-                        this.showDataCard('7.8', 'PH值', '正常', 'normal', '', true);
-                    });
-                }, 2000);
-            }
-
-            /**
-             * 显示悬浮气泡（立即显示）
-             * @param {string} message - 消息内容
-             * @param {boolean} isUser - 是否为用户消息
-             */
-            showSpeechBubble(message, isUser = false) {
-                if (!this.speechBubble || !this.speechContent) return;
-                
-                // 添加到历史记录
-                this.messageHistory.push({
-                    type: isUser ? 'user' : 'assistant',
-                    message: message,
-                    timestamp: Date.now()
-                });
-                
-                // 重新渲染所有消息
-                this.renderMessageHistory();
-                
-                // 显示气泡
-                this.speechBubble.classList.add('show');
-                
-                // 滚动到底部
-                setTimeout(() => {
-                    if (this.speechContent) {
-                        this.speechContent.scrollTop = this.speechContent.scrollHeight;
-                    }
-                }, 100);
-            }
-
-            /**
-             * 渲染消息历史记录
-             */
-            renderMessageHistory() {
-                if (!this.speechContent) return;
-
-                // 清空现有内容
-                this.speechContent.innerHTML = '';
-
-                // 渲染每条消息
-                this.messageHistory.forEach((msg, index) => {
-                    const messageItem = document.createElement('div');
-                    messageItem.className = `message-item ${msg.type}`;
-                    
-                    const sender = document.createElement('div');
-                    sender.className = 'message-sender';
-                    sender.textContent = msg.type === 'user' ? '用户' : 'EHS AI 助手';
-                    
-                    const text = document.createElement('div');
-                    text.className = 'message-text';
-                    text.textContent = msg.message;
-                    
-                    messageItem.appendChild(sender);
-                    messageItem.appendChild(text);
-                    
-                    // 如果消息包含图表数据，显示缩略图
-                    if (msg.chartData) {
-                        const thumbnail = this.createChartThumbnail(msg.chartData, index);
-                        messageItem.appendChild(thumbnail);
-                    }
-                    
-                    this.speechContent.appendChild(messageItem);
-                });
-            }
-
-            /**
-             * 创建图表缩略图
-             * @param {Object} chartData - 图表数据 {value, label, status, statusType, unit}
-             * @param {number} index - 消息索引
-             * @returns {HTMLElement} - 缩略图元素
-             */
-            createChartThumbnail(chartData, index) {
-                const thumbnail = document.createElement('div');
-                thumbnail.className = `chart-thumbnail status-${chartData.statusType}`;
-                
-                // 展开图标
-                const expandIcon = document.createElement('i');
-                expandIcon.className = 'fas fa-expand expand-icon';
-                thumbnail.appendChild(expandIcon);
-                
-                // 数值
-                const valueEl = document.createElement('div');
-                valueEl.className = 'chart-value';
-                
-                const valueNum = document.createElement('span');
-                valueNum.textContent = chartData.value;
-                valueEl.appendChild(valueNum);
-                
-                if (chartData.unit) {
-                    const valueUnit = document.createElement('span');
-                    valueUnit.className = 'unit';
-                    valueUnit.textContent = chartData.unit;
-                    valueEl.appendChild(valueUnit);
-                }
-                
-                // 标签
-                const labelEl = document.createElement('div');
-                labelEl.className = 'chart-label';
-                labelEl.textContent = chartData.label;
-                
-                // 状态
-                const statusEl = document.createElement('div');
-                statusEl.className = 'chart-status';
-                statusEl.textContent = chartData.status;
-                
-                thumbnail.appendChild(valueEl);
-                thumbnail.appendChild(labelEl);
-                thumbnail.appendChild(statusEl);
-                
-                // 点击事件：放大显示完整图表（不自动关闭，需要手动关闭）
-                thumbnail.addEventListener('click', () => {
-                    this.showDataCard(
-                        chartData.value,
-                        chartData.label,
-                        chartData.status,
-                        chartData.statusType,
-                        chartData.unit || '',
-                        false  // 从缩略图点击展开的不自动关闭
-                    );
-                });
-                
-                return thumbnail;
-            }
-
-            /**
-             * 清理历史对话确认
-             */
-            clearHistoryConfirm() {
-                if (!confirm('确定要清理所有历史对话记录吗？此操作无法撤销。')) {
-                    return;
-                }
-                
-                this.clearHistory();
-            }
-
-            /**
-             * 清理历史对话
-             */
-            clearHistory() {
-                this.messageHistory = [];
-                if (this.speechContent) {
-                    this.speechContent.innerHTML = '';
-                }
-                this.hideSpeechBubble();
-            }
-
-            /**
-             * 隐藏悬浮气泡
-             */
-            hideSpeechBubble() {
-                if (this.speechBubble) {
-                    this.speechBubble.classList.remove('show');
-                }
-            }
-
-            /**
-             * 打字机效果：逐字显示文本
-             * @param {string} text - 要显示的文本
-             * @param {string|HTMLElement} elementId - 目标元素 ID 或元素对象
-             * @param {number} speed - 打字速度（毫秒），默认 50-100ms 随机
-             * @returns {Promise} - 完成 Promise
-             */
-            typeText(text, elementId, speed = null) {
-                return new Promise((resolve) => {
-                    const element = typeof elementId === 'string' 
-                        ? document.getElementById(elementId) 
-                        : elementId;
-                    
-                    if (!element) {
-                        resolve();
-                        return;
-                    }
-
-                    // 清空元素内容
-                    element.textContent = '';
-                    
-                    let index = 0;
-                    let cancelled = false;
-                    
-                    const type = () => {
-                        // 检查是否被取消
-                        if (this.currentMessagePromise && this.currentMessagePromise.cancelled) {
-                            cancelled = true;
-                            if (this.typeTextInterval) {
-                                clearTimeout(this.typeTextInterval);
-                                this.typeTextInterval = null;
-                            }
-                            resolve();
-                            return;
-                        }
-                        
-                        if (index < text.length && !cancelled) {
-                            // 添加当前字符
-                            element.textContent = text.substring(0, index + 1);
-                            
-                            index++;
-                            
-                            // 随机速度 50-100ms，或使用指定速度
-                            const delay = speed !== null ? speed : (50 + Math.random() * 50);
-                            
-                            this.typeTextInterval = setTimeout(type, delay);
-                        } else {
-                            // 打字完成
-                            if (this.typeTextInterval) {
-                                clearTimeout(this.typeTextInterval);
-                                this.typeTextInterval = null;
-                            }
-                            resolve();
-                        }
-                    };
-                    
-                    // 开始打字
-                    type();
-                });
-            }
-
-            /**
-             * 显示悬浮气泡并使用打字机效果
-             * @param {string} message - 消息内容
-             * @param {Object} chartData - 图表数据（可选）{value, label, status, statusType, unit}
-             * @returns {Promise} - 打字完成后的 Promise
-             */
-            showSpeechBubbleWithTypewriter(message, chartData = null) {
-                return new Promise((resolve) => {
-                    if (!this.speechBubble || !this.speechContent) {
-                        resolve();
-                        return;
-                    }
-
-                    // 设置为正在说话状态
-                    this.isSpeaking = true;
-                    if (this.avatarFullBody) {
-                        this.avatarFullBody.classList.add('state-speaking');
-                    }
-
-                    // 确保气泡显示
-                    this.speechBubble.classList.add('show');
-                    
-                    // 创建临时容器用于打字机效果
-                    const tempContainer = document.createElement('div');
-                    tempContainer.style.display = 'none';
-                    this.speechContent.appendChild(tempContainer);
-                    
-                    // 使用打字机效果显示消息内容
-                    this.currentMessagePromise = { resolve, cancelled: false };
-                    this.typeText(message, tempContainer).then(() => {
-                        // 打字完成后添加到历史记录并移除临时容器
-                        if (this.currentMessagePromise && !this.currentMessagePromise.cancelled) {
-                            // 添加到历史记录（包含图表数据）
-                            this.messageHistory.push({
-                                type: 'assistant',
-                                message: message,
-                                timestamp: Date.now(),
-                                chartData: chartData || null
-                            });
-                            
-                            // 重新渲染所有消息
-                            this.renderMessageHistory();
-                            
-                            // 移除临时容器
-                            if (tempContainer.parentNode) {
-                                tempContainer.parentNode.removeChild(tempContainer);
-                            }
-                            
-                            // 滚动到底部
-                            setTimeout(() => {
-                                if (this.speechContent) {
-                                    this.speechContent.scrollTop = this.speechContent.scrollHeight;
-                                }
-                            }, 100);
-                            
-                            this.currentMessagePromise.resolve();
-                            this.currentMessagePromise = null;
-                        }
-                    });
-                });
-            }
-
-            /**
-             * 切换输入模式（语音/键盘）
-             */
-            switchInputMode() {
-                if (!this.inputArea || !this.btnToggleInput) return;
-                
-                if (this.inputMode === 'voice') {
-                    // 切换到键盘模式
-                    this.inputMode = 'keyboard';
-                    this.inputArea.classList.add('mode-keyboard');
-                    
-                    // 更新按钮提示
-                    this.btnToggleInput.title = '切换到语音输入';
-                    
-                    // 聚焦输入框
-                    setTimeout(() => {
-                        if (this.hudInput) {
-                            this.hudInput.focus();
-                        }
-                    }, 100);
-                } else {
-                    // 切换到语音模式
-                    this.inputMode = 'voice';
-                    this.inputArea.classList.remove('mode-keyboard');
-                    
-                    // 更新按钮提示
-                    this.btnToggleInput.title = '切换到键盘输入';
-                    
-                    // 清空输入框
-                    if (this.hudInput) {
-                        this.hudInput.value = '';
-                    }
-                }
-            }
-
-            /**
-             * 处理键盘输入
-             */
-            handleKeyboardInput() {
-                if (!this.hudInput) return;
-                
-                const message = this.hudInput.value.trim();
-                if (!message) return;
-
-                // 显示用户输入
-                this.showSpeechBubble(message, true);
-
-                // 清空输入框
-                this.hudInput.value = '';
-
-                // 1秒后模拟 AI 回复（使用打字机效果）
-                setTimeout(() => {
-                    // 根据用户输入的内容返回相应的回复
-                    let aiResponse = '收到您的问题，正在处理中...';
-                    let cardValue = null;
-                    let cardLabel = null;
-                    let cardStatus = null;
-                    let cardStatusType = 'normal';
-                    let unit = '';
-
-                    // 检查用户输入的关键词
-                    if (message.includes('PH') || message.includes('ph') || message.includes('酸碱')) {
-                        aiResponse = '当前二号污水池 PH 值为 7.8，处于正常范围内。';
-                        cardValue = '7.8';
-                        cardLabel = 'PH值';
-                        cardStatus = '正常';
-                        cardStatusType = 'normal';
-                        unit = '';
-                    } else if (message.includes('温度') || message.includes('temp')) {
-                        aiResponse = '当前温度监测值为 25.3°C，在正常范围内。';
-                        cardValue = '25.3';
-                        cardLabel = '温度';
-                        cardStatus = '正常';
-                        cardStatusType = 'normal';
-                        unit = '°C';
-                    } else if (message.includes('压力') || message.includes('pressure')) {
-                        aiResponse = '当前压力监测值为 1.2 MPa，需要注意。';
-                        cardValue = '1.2';
-                        cardLabel = '压力';
-                        cardStatus = '预警';
-                        cardStatusType = 'alert';
-                        unit = 'MPa';
-                    }
-
-                    // 准备图表数据（如果有）
-                    const chartData = cardValue ? {
-                        value: cardValue,
-                        label: cardLabel,
-                        status: cardStatus,
-                        statusType: cardStatusType,
-                        unit: unit
-                    } : null;
-
-                    this.showSpeechBubbleWithTypewriter(aiResponse, chartData).then(() => {
-                        this.isSpeaking = false;
-                        if (this.avatarFullBody) {
-                            this.avatarFullBody.classList.remove('state-speaking');
-                        }
-                        // 如果有数据卡片，自动显示完整图表（5秒后自动关闭）
-                        if (cardValue) {
-                            this.showDataCard(cardValue, cardLabel, cardStatus, cardStatusType, unit, true);
-                        }
-                    });
-                }, 1000);
-            }
-
-            /**
-             * 强制打断 AI 说话
-             */
-            interruptSpeaking() {
-                if (!this.isSpeaking) return;
-
-                // 取消当前打字效果
-                if (this.typeTextInterval) {
-                    clearInterval(this.typeTextInterval);
-                    this.typeTextInterval = null;
-                }
-
-                // 标记消息已取消
-                if (this.currentMessagePromise) {
-                    this.currentMessagePromise.cancelled = true;
-                    this.currentMessagePromise = null;
-                }
-
-                // 清空气泡内容
-                if (this.speechContent) {
-                    this.speechContent.textContent = '';
-                }
-
-                // 隐藏气泡
-                this.hideSpeechBubble();
-
-                // 移除正在说话状态
-                this.isSpeaking = false;
-                if (this.avatarFullBody) {
-                    this.avatarFullBody.classList.remove('state-speaking');
-                }
-            }
-
-            /**
-             * 显示数据卡片（增强图表样式）
-             * @param {string} value - 数值（如 "7.8"）
-             * @param {string} label - 标签（如 "PH值"）
-             * @param {string} status - 状态文本（如 "正常" 或 "异常"）
-             * @param {string} statusType - 状态类型 ('normal' | 'alert')
-             * @param {string} unit - 单位（如 "°C", "MPa"）
-             * @param {boolean} autoClose - 是否自动关闭（默认 true，5秒后关闭）
-             */
-            showDataCard(value, label, status, statusType = 'normal', unit = '', autoClose = true) {
-                if (!this.dataCardLayer) return;
-
-                // 清除之前的卡片
-                this.clearDataCard();
-
-                // 创建数据卡片
-                const card = document.createElement('div');
-                card.className = `data-card status-${statusType}`;
-
-                // 关闭按钮
-                const closeBtn = document.createElement('button');
-                closeBtn.className = 'close-card-btn';
-                closeBtn.title = '关闭';
-                closeBtn.innerHTML = '<i class="fas fa-times"></i>';
-                closeBtn.addEventListener('click', () => {
-                    this.hideDataCard();
-                });
-                card.appendChild(closeBtn);
-
-                // 图表背景装饰
-                const chartBg = document.createElement('div');
-                chartBg.className = 'chart-bg';
-                card.appendChild(chartBg);
-
-                // 数值区域
-                const valueEl = document.createElement('div');
-                valueEl.className = 'data-value';
-                
-                const valueNum = document.createElement('span');
-                valueNum.textContent = value;
-                valueEl.appendChild(valueNum);
-                
-                if (unit) {
-                    const valueUnit = document.createElement('span');
-                    valueUnit.className = 'unit';
-                    valueUnit.textContent = unit;
-                    valueEl.appendChild(valueUnit);
-                }
-
-                // 标签和状态区域
-                const labelEl = document.createElement('div');
-                labelEl.className = 'data-label';
-                
-                const labelText = document.createElement('span');
-                labelText.className = 'label-text';
-                labelText.textContent = label;
-                labelEl.appendChild(labelText);
-                
-                const statusIndicator = document.createElement('span');
-                statusIndicator.className = 'status-indicator';
-                const statusDot = document.createElement('span');
-                statusDot.className = 'status-dot';
-                const statusText = document.createElement('span');
-                statusText.textContent = status;
-                statusIndicator.appendChild(statusDot);
-                statusIndicator.appendChild(statusText);
-                labelEl.appendChild(statusIndicator);
-
-                card.appendChild(valueEl);
-                card.appendChild(labelEl);
-
-                this.dataCardLayer.appendChild(card);
-
-                // 触发显示动画
-                setTimeout(() => {
-                    card.classList.add('show');
-                }, 50);
-
-                // 根据 autoClose 参数决定是否自动关闭
-                if (autoClose) {
-                    // 5秒后自动淡出
-                    this.dataCardTimeout = setTimeout(() => {
-                        this.hideDataCard();
-                    }, 5000);
-                }
-                // 如果 autoClose 为 false，不设置自动关闭，只显示关闭按钮
-            }
-
-            /**
-             * 隐藏数据卡片
-             */
-            hideDataCard() {
-                const card = this.dataCardLayer.querySelector('.data-card');
-                if (card) {
-                    card.classList.add('fade-out');
-                    setTimeout(() => {
-                        this.clearDataCard();
-                    }, 400);
-                }
-            }
-
-            /**
-             * 清除数据卡片
-             */
-            clearDataCard() {
-                if (this.dataCardTimeout) {
-                    clearTimeout(this.dataCardTimeout);
-                    this.dataCardTimeout = null;
-                }
-                if (this.dataCardLayer) {
-                    this.dataCardLayer.innerHTML = '';
-                }
-            }
-        }
-
-        // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', () => {
-            new AvatarController();
+            const container = document.getElementById('avatar-container');
+            const minimizeBtn = document.getElementById('minimize-btn');
+            const fabTrigger = document.getElementById('fab-trigger');
+            const inputContainer = document.getElementById('input-container');
+            const modeVoice = document.getElementById('mode-voice');
+            const modeKeyboard = document.getElementById('mode-keyboard');
+            const keyboardInput = modeKeyboard.querySelector('input');
+            const sendBtn = modeKeyboard.querySelector('.send-btn');
+            const stopBtn = modeKeyboard.querySelector('.stop-btn');
+            const chatHistory = document.getElementById('chat-history');
+
+            // State
+            let isDragging = false;
+            let isGenerating = false;
+            let currentTimeout = null;
+            let chartTimeout = null;
+            
+            // State for Drag (restoring removed variables)
+            let startX = 0, startY = 0;
+            let initialTranslateX = 0, initialTranslateY = 0;
+            let currentTranslateX = 0, currentTranslateY = 0;
+            
+            // Boundary constraints (deltas relative to initial position)
+            let minX = 0, maxX = 0, minY = 0, maxY = 0;
+
+            // =========================================
+            // Drag Interaction
+            // =========================================
+            container.addEventListener('mousedown', dragStart);
+            container.addEventListener('touchstart', dragStart, { passive: false });
+            
+            // Stop drag propagation from Bubble and Input
+            chatHistory.addEventListener('mousedown', (e) => e.stopPropagation());
+            chatHistory.addEventListener('touchstart', (e) => e.stopPropagation());
+            inputContainer.addEventListener('mousedown', (e) => e.stopPropagation());
+            inputContainer.addEventListener('touchstart', (e) => e.stopPropagation());
+
+            function dragStart(e) {
+                // Ignore clicks on buttons/inputs (handled by propagation stop, but just in case)
+                if (e.target.closest('.minimize-btn')) {
+                    return;
+                }
+
+                // Get Event Position
+                const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+                isDragging = true;
+                startX = clientX;
+                startY = clientY;
+
+                // 1. Critical: Remove transition for instant follow
+                container.style.transition = 'none';
+
+                // 2. Calculate Boundaries
+                // We want to prevent the element from leaving the viewport.
+                // The element is positioned with bottom/right.
+                // rect gives current visual position.
+                const rect = container.getBoundingClientRect();
+                const viewportW = window.innerWidth;
+                const viewportH = window.innerHeight;
+
+                // Calculate allowed movement from CURRENT position
+                // Move Left: max allowed is -rect.left
+                // Move Right: max allowed is viewportW - rect.right
+                // Move Up: max allowed is -rect.top
+                // Move Down: max allowed is viewportH - rect.bottom
+                
+                minX = -rect.left;
+                maxX = viewportW - rect.right;
+                minY = -rect.top;
+                maxY = viewportH - rect.bottom;
+
+                // We are tracking cumulative translation in currentTranslateX/Y.
+                // The boundaries above are for the DELTA of this specific drag.
+                // Actually, easier logic:
+                // NewTranslate = OldTranslate + Delta
+                // But we must clamp (OldTranslate + Delta) such that the resulting rect is within bounds.
+                // 
+                // Let's stick to: calculate delta, clamp delta, add to initial.
+            }
+
+            window.addEventListener('mousemove', dragMove);
+            window.addEventListener('touchmove', dragMove, { passive: false });
+
+            function dragMove(e) {
+                if (!isDragging) return;
+                
+                // Prevent scrolling on touch
+                if(e.type === 'touchmove') e.preventDefault();
+
+                const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+
+                // Apply clamping based on the boundaries calculated at start
+                // Since minX/maxX are relative to the start position of THIS drag
+                const clampedDx = Math.max(minX, Math.min(maxX, dx));
+                const clampedDy = Math.max(minY, Math.min(maxY, dy));
+
+                // Update Position
+                // We add the clamped delta to the translation value we had before this drag started
+                const newX = initialTranslateX + clampedDx;
+                const newY = initialTranslateY + clampedDy;
+                
+                // Use translate3d for hardware acceleration
+                container.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
+                
+                // Update current state purely for tracking (though we won't use it until mouseup)
+                currentTranslateX = newX;
+                currentTranslateY = newY;
+            }
+
+            window.addEventListener('mouseup', dragEnd);
+            window.addEventListener('touchend', dragEnd);
+
+            function dragEnd() {
+                if (!isDragging) return;
+                isDragging = false;
+
+                // Commit the new position
+                initialTranslateX = currentTranslateX;
+                initialTranslateY = currentTranslateY;
+
+                // Restore transition for other animations (like minimize)
+                // Note: We don't want a transition on transform immediately if we are just staying put,
+                // but it's fine.
+                container.style.transition = 'transform 0.1s linear, opacity 0.5s ease, scale 0.5s ease';
+            }
+
+
+            // =========================================
+            // Minimize / Expand Logic
+            // =========================================
+            minimizeBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent drag start
+                
+                // Shrink and Fade Out
+                // We add a class, but we must ensure the transform scale(0) takes precedence
+                // while preserving the translate position? 
+                // Actually, if we scale(0), the position doesn't matter visually.
+                // CSS !important on scale will handle it.
+                container.classList.add('minimized');
+                
+                // Show FAB
+                fabTrigger.classList.add('active');
+            });
+
+            fabTrigger.addEventListener('click', () => {
+                // Restore
+                container.classList.remove('minimized');
+                fabTrigger.classList.remove('active');
+                
+                // Ensure the transform is restored to the drag position
+                // The class removal restores the CSS rules, but the inline style remains.
+                // The inline style is translate3d(...).
+                // The CSS transition will handle the scale back to 1.
+            });
+
+
+            // =========================================
+            // Input Mode Switch & Send Logic
+            // =========================================
+            // Click to toggle
+            inputContainer.addEventListener('click', (e) => {
+                // If clicking send button or input, don't toggle mode
+                if (e.target.closest('.send-btn') || e.target.closest('input')) return;
+
+                if (modeKeyboard.classList.contains('hidden')) {
+                    // Switch to Keyboard
+                    modeVoice.classList.add('hidden');
+                    modeKeyboard.classList.remove('hidden');
+                    setTimeout(() => keyboardInput.focus(), 100);
+                } else {
+                    // Switch to Voice
+                    modeKeyboard.classList.add('hidden');
+                    modeVoice.classList.remove('hidden');
+                }
+            });
+            
+            // Prevent drag when clicking input
+            keyboardInput.addEventListener('mousedown', (e) => e.stopPropagation());
+            keyboardInput.addEventListener('touchstart', (e) => e.stopPropagation());
+
+            // Send Logic
+            function sendMessage() {
+                const text = keyboardInput.value.trim();
+                if (!text) return;
+                
+                // Set generating state
+                isGenerating = true;
+                sendBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+
+                // 1. Add User Message
+                appendMessage(text, 'user');
+                
+                // Clear input
+                keyboardInput.value = '';
+                
+                // 2. Simulate Response
+                // Show "Thinking..." or just wait a bit
+                currentTimeout = setTimeout(() => {
+                    const systemMsgDiv = appendMessage('正在分析数据...', 'system');
+                    
+                    // Update the message content with a chart after a delay
+                    chartTimeout = setTimeout(() => {
+                        systemMsgDiv.innerHTML = `<strong>分析结果：</strong><br>关于 "${text}" 的数据如下：`;
+                        
+                        // Create chart container
+                        const chartDiv = document.createElement('div');
+                        chartDiv.className = 'chart-container';
+                        systemMsgDiv.appendChild(chartDiv);
+                        
+                        // Render Chart
+                        renderChart(chartDiv);
+                        
+                        // Scroll to bottom
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                        
+                        // Reset State
+                        isGenerating = false;
+                        sendBtn.classList.remove('hidden');
+                        stopBtn.classList.add('hidden');
+                        
+                    }, 800);
+                }, 400);
+            }
+            
+            // Stop Logic
+            stopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!isGenerating) return;
+                
+                // Clear timeouts
+                if (currentTimeout) clearTimeout(currentTimeout);
+                if (chartTimeout) clearTimeout(chartTimeout);
+                
+                // Append "Stopped" message if needed or just stop
+                appendMessage('已停止生成。', 'system');
+                
+                // Reset State
+                isGenerating = false;
+                sendBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+            });
+
+            function appendMessage(content, type) {
+                const div = document.createElement('div');
+                div.className = `msg-item msg-${type}`;
+                div.innerHTML = content; // Allow HTML
+                chatHistory.appendChild(div);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                return div;
+            }
+
+            function renderChart(container) {
+                // Initialize ECharts
+                const myChart = echarts.init(container);
+                
+                // Dummy Data
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    grid: {
+                        top: '10%',
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                        axisLine: { lineStyle: { color: '#0ff' } },
+                        axisLabel: { color: '#fff' }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        splitLine: { lineStyle: { color: 'rgba(0,255,255,0.1)' } },
+                        axisLabel: { color: '#fff' }
+                    },
+                    series: [
+                        {
+                            data: [120, 200, 150, 80, 70],
+                            type: 'bar',
+                            itemStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: '#00f2fe' },
+                                    { offset: 1, color: '#4facfe' }
+                                ])
+                            },
+                            showBackground: true,
+                            backgroundStyle: {
+                                color: 'rgba(180, 180, 180, 0.2)'
+                            }
+                        }
+                    ]
+                };
+                
+                myChart.setOption(option);
+                
+                // Resize handler (optional, but good for robustness)
+                window.addEventListener('resize', () => myChart.resize());
+            }
+
+            sendBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sendMessage();
+            });
+
+            keyboardInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
         });
     </script>
 </body>
