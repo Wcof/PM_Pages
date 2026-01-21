@@ -412,148 +412,6 @@
             pointer-events: none;
         }
 
-        /* =========================================
-           7. Exception Handling UI
-           ========================================= */
-        /* Offline Icon */
-        .offline-icon {
-            position: absolute;
-            top: -40px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 24px;
-            height: 24px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            z-index: 2000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }
-        .offline-icon.visible {
-            opacity: 1;
-        }
-
-        /* Online Icon */
-        .online-icon {
-            position: absolute;
-            top: -40px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 24px;
-            height: 24px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            z-index: 2000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }
-        .online-icon.visible {
-            opacity: 1;
-        }
-
-        /* Toast Notification */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-        
-        .toast {
-            background: rgba(0, 20, 30, 0.9);
-            border: 1px solid rgba(255, 77, 77, 0.5);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: slideDown 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-        
-        .toast.success {
-            border-color: rgba(0, 255, 0, 0.5);
-        }
-
-        @keyframes slideDown {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        /* Interaction Disabled State */
-        .interaction-disabled {
-            filter: grayscale(100%);
-            pointer-events: none !important;
-            opacity: 0.7;
-        }
-        
-        /* Input Arrow Animation */
-        .input-arrow-anim {
-            position: absolute;
-            bottom: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #0ff;
-            font-size: 20px;
-            animation: bounce 1s infinite;
-            display: none;
-        }
-        .input-arrow-anim.visible {
-            display: block;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateX(-50%) translateY(0); }
-            50% { transform: translateX(-50%) translateY(5px); }
-        }
-
-        /* Pulse Animation for Button */
-        .btn-pulse {
-            animation: pulse-anim 1.5s infinite;
-        }
-        @keyframes pulse-anim {
-            0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(0, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
-        }
-
-        /* Progress Bar */
-        .progress-bar-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: rgba(255, 255, 255, 0.1);
-            display: none;
-        }
-        .progress-bar-container.visible {
-            display: block;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            background: #0ff;
-            width: 0%;
-            transition: width 0.2s linear;
-        }
-
     </style>
 </head>
 <body>
@@ -573,12 +431,8 @@
         </div>
 
         <!-- Breathing Wrapper -->
-        <div class="avatar-breathing-wrapper" id="avatar-wrapper">
+        <div class="avatar-breathing-wrapper">
             
-            <!-- Offline/Online Status Icons -->
-            <div id="offline-icon" class="offline-icon">🚫</div>
-            <div id="online-icon" class="online-icon" style="color: #0f0;">✅</div>
-
             <!-- HUD Bubble -->
             <div class="hud-bubble" id="chat-history">
                 <div class="msg-item msg-system">
@@ -633,8 +487,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- Arrow Animation -->
-                <div id="input-arrow" class="input-arrow-anim">⬇</div>
             </div>
 
         </div>
@@ -652,14 +504,9 @@
             const sendBtn = modeKeyboard.querySelector('.send-btn');
             const stopBtn = modeKeyboard.querySelector('.stop-btn');
             const chatHistory = document.getElementById('chat-history');
-            const offlineIcon = document.getElementById('offline-icon');
-            const onlineIcon = document.getElementById('online-icon');
-            const avatarWrapper = document.getElementById('avatar-wrapper');
 
             // State
             let isDragging = false;
-            let isOnline = true;
-            let reconnectTimer = null;
             let isGenerating = false;
             let currentTimeout = null;
             let chartTimeout = null;
@@ -833,259 +680,49 @@
             keyboardInput.addEventListener('mousedown', (e) => e.stopPropagation());
             keyboardInput.addEventListener('touchstart', (e) => e.stopPropagation());
 
-            // Toast Helper
-            function showToast(text, type = 'info') {
-                let container = document.querySelector('.toast-container');
-                if (!container) {
-                    container = document.createElement('div');
-                    container.className = 'toast-container';
-                    document.body.appendChild(container);
-                }
-                const toast = document.createElement('div');
-                toast.className = `toast ${type}`;
-                toast.textContent = text;
-                container.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
-            }
-
-            // Network Handlers
-            function handleOnline() {
-                if (isOnline) return;
-                isOnline = true;
-                offlineIcon.classList.remove('visible');
-                onlineIcon.classList.add('visible');
-                setTimeout(() => onlineIcon.classList.remove('visible'), 3000);
-                avatarWrapper.classList.remove('interaction-disabled');
-                showToast('网络已恢复', 'success');
-                if (reconnectTimer) clearTimeout(reconnectTimer);
-                
-                // Resend unsent commands
-                const unsent = localStorage.getItem('unsent_cmd');
-                if (unsent) {
-                    localStorage.removeItem('unsent_cmd');
-                    showToast('正在发送暂存指令...', 'success');
-                    // Check if commandQueue exists
-                    if (typeof commandQueue !== 'undefined') {
-                        commandQueue.add(unsent, 'normal');
-                    }
-                }
-            }
-
-            function handleOffline() {
-                if (!isOnline) return;
-                isOnline = false;
-                offlineIcon.classList.add('visible');
-                avatarWrapper.classList.add('interaction-disabled');
-                showToast('网络连接断开', 'error');
-            }
-
-            window.addEventListener('online', handleOnline);
-            window.addEventListener('offline', handleOffline);
-
-            // --- Command Queue & Concurrency ---
-            class CommandQueue {
-                constructor() {
-                    this.queue = [];
-                    this.isProcessing = false;
-                    this.lock = false;
-                }
-
-                add(command, priority = 'normal') {
-                    const item = { command, priority, timestamp: Date.now() };
-                    if (priority === 'high') {
-                        const lastHighIndex = this.queue.findLastIndex(i => i.priority === 'high');
-                        this.queue.splice(lastHighIndex + 1, 0, item);
-                        this.playDing();
-                    } else {
-                        this.queue.push(item);
-                    }
-                    this.processNext();
-                }
-
-                async processNext() {
-                    if (this.isProcessing || this.queue.length === 0) return;
-                    if (this.lock) return;
-
-                    this.isProcessing = true;
-                    const item = this.queue.shift();
-
-                    // Progress Bar
-                    const cmdProgress = document.getElementById('cmd-progress');
-                    const cmdProgressFill = cmdProgress ? cmdProgress.querySelector('.progress-bar-fill') : null;
-                    if (cmdProgress) {
-                        cmdProgress.classList.add('visible');
-                        if (cmdProgressFill) cmdProgressFill.style.width = '0%';
-                    }
-                    
-                    this.lock = true;
-                    const lockTimer = setTimeout(() => { this.lock = false; }, 5000);
-
-                    try {
-                        await this.executeCommand(item);
-                    } catch (e) {
-                        console.error(e);
-                        monitor.log('EXECUTION_ERROR', e.message);
-                    } finally {
-                        this.isProcessing = false;
-                        this.lock = false;
-                        clearTimeout(lockTimer);
-                        if (cmdProgress) cmdProgress.classList.remove('visible');
-                        this.processNext();
-                    }
-                }
-
-                async executeCommand(item) {
-                    const cmdProgress = document.getElementById('cmd-progress');
-                    const cmdProgressFill = cmdProgress ? cmdProgress.querySelector('.progress-bar-fill') : null;
-                    
-                    if (cmdProgressFill) cmdProgressFill.style.width = '50%';
-                    
-                    // Intent Check
-                    if (!this.checkIntent(item.command)) {
-                        this.handleIntentError();
-                        if (cmdProgressFill) cmdProgressFill.style.width = '100%';
-                        return;
-                    }
-
-                    // Execute Logic
-                    await performMessageSend(item.command);
-                    if (cmdProgressFill) cmdProgressFill.style.width = '100%';
-                }
-
-                checkIntent(text) {
-                    const keywords = ['EHS', '安全', '风险', '隐患', '事故', '检查', '数据', '你好', '测试'];
-                    const hasKeyword = keywords.some(k => text.includes(k));
-                    if (!hasKeyword && Math.random() < 0.4) return false;
-                    return true;
-                }
-
-                handleIntentError() {
-                    appendMessage('抱歉，我只能回答EHS领域的专业问题。', 'system');
-                    const chips = [
-                        { icon: '⚠️', text: '风险分布' },
-                        { icon: '📊', text: '安全报表' },
-                        { icon: '🔍', text: '隐患排查' }
-                    ];
-                    const div = document.createElement('div');
-                    div.style.cssText = 'display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;';
-                    chips.forEach(s => {
-                        const chip = document.createElement('div');
-                        chip.className = 'msg-item';
-                        chip.style.cssText = 'background:rgba(0,255,255,0.3);cursor:pointer;display:flex;align-items:center;gap:5px;';
-                        chip.innerHTML = `<span>${s.icon}</span><span>${s.text}</span>`;
-                        chip.onclick = () => {
-                            this.add(s.text, 'normal');
-                            div.remove();
-                        };
-                        div.appendChild(chip);
-                    });
-                    chatHistory.appendChild(div);
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                    monitor.log('INTENT_ERROR', 'Unknown intent');
-                }
-
-                playDing() {
-                    try {
-                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.value = 800;
-                        gain.gain.value = 0.1;
-                        osc.start();
-                        setTimeout(() => osc.stop(), 200);
-                    } catch(e) {}
-                }
-            }
-
-            // --- Monitoring ---
-            class MonitoringSystem {
-                constructor() {
-                    this.errors = JSON.parse(localStorage.getItem('ehs_errors') || '[]');
-                }
-                log(type, detail) {
-                    const error = { type, detail, timestamp: Date.now() };
-                    this.errors.push(error);
-                    localStorage.setItem('ehs_errors', JSON.stringify(this.errors));
-                    console.log('[Monitor]', error);
-                }
-            }
-            const monitor = new MonitoringSystem();
-            const commandQueue = new CommandQueue();
-
-            // --- Helpers ---
-            function checkASRAndHandle() {
-                const isNoisy = Math.random() < 0.1;
-                if (isNoisy) {
-                    appendMessage('环境噪音较大，建议您切换至键盘模式输入', 'system');
-                    const inputArrow = document.getElementById('input-arrow');
-                    const keyboardSwitchBtn = document.getElementById('keyboard-switch-btn');
-                    if (inputArrow) {
-                        inputArrow.classList.add('visible');
-                        setTimeout(() => inputArrow.classList.remove('visible'), 5000);
-                    }
-                    if (keyboardSwitchBtn) {
-                        keyboardSwitchBtn.classList.add('btn-pulse');
-                        setTimeout(() => keyboardSwitchBtn.classList.remove('btn-pulse'), 5000);
-                    }
-                    monitor.log('ASR_ERROR', 'High Noise Level');
-                    return false;
-                }
-                return true;
-            }
-
-            function performMessageSend(text) {
-                return new Promise((resolve) => {
-                    isGenerating = true;
-                    if (sendBtn) sendBtn.classList.add('hidden');
-                    if (stopBtn) stopBtn.classList.remove('hidden');
-
-                    appendMessage(text, 'user');
-                    
-                    currentTimeout = setTimeout(() => {
-                        const systemMsgDiv = appendMessage('正在分析数据...', 'system');
-                        chartTimeout = setTimeout(() => {
-                            systemMsgDiv.innerHTML = `<strong>分析结果：</strong><br>关于 "${text}" 的数据如下：`;
-                            const chartDiv = document.createElement('div');
-                            chartDiv.className = 'chart-container';
-                            systemMsgDiv.appendChild(chartDiv);
-                            renderChart(chartDiv);
-                            chatHistory.scrollTop = chatHistory.scrollHeight;
-                            
-                            isGenerating = false;
-                            if (sendBtn) sendBtn.classList.remove('hidden');
-                            if (stopBtn) stopBtn.classList.add('hidden');
-                            resolve();
-                        }, 800);
-                    }, 400);
-                });
-            }
-
             // Send Logic
             function sendMessage() {
                 const text = keyboardInput.value.trim();
                 if (!text) return;
-
-                // ASR Check (conceptually, if this was voice)
-                // For keyboard, we just assume it's valid text, but let's simulate the check 
-                // if we were in voice mode (which we are not when using sendMessage typically).
-                // But user asked for "Speech Recognition Failure" handling.
-                // Since we only have a "Voice Mode" animation and no real input, 
-                // we'll leave ASR check for a hypothetical voice input event.
-                // However, for demo, let's assume if text starts with "voice:", it's a voice input simulation.
                 
-                if (text.startsWith('voice:')) {
-                    if (!checkASRAndHandle()) return;
-                }
+                // Set generating state
+                isGenerating = true;
+                sendBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
 
+                // 1. Add User Message
+                appendMessage(text, 'user');
+                
                 // Clear input
                 keyboardInput.value = '';
                 
-                // Add to Queue
-                // 4.1 Priority Queue
-                const priority = text.includes('紧急') ? 'high' : 'normal';
-                commandQueue.add(text, priority);
+                // 2. Simulate Response
+                // Show "Thinking..." or just wait a bit
+                currentTimeout = setTimeout(() => {
+                    const systemMsgDiv = appendMessage('正在分析数据...', 'system');
+                    
+                    // Update the message content with a chart after a delay
+                    chartTimeout = setTimeout(() => {
+                        systemMsgDiv.innerHTML = `<strong>分析结果：</strong><br>关于 "${text}" 的数据如下：`;
+                        
+                        // Create chart container
+                        const chartDiv = document.createElement('div');
+                        chartDiv.className = 'chart-container';
+                        systemMsgDiv.appendChild(chartDiv);
+                        
+                        // Render Chart
+                        renderChart(chartDiv);
+                        
+                        // Scroll to bottom
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                        
+                        // Reset State
+                        isGenerating = false;
+                        sendBtn.classList.remove('hidden');
+                        stopBtn.classList.add('hidden');
+                        
+                    }, 800);
+                }, 400);
             }
             
             // Stop Logic
